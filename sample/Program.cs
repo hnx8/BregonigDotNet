@@ -17,6 +17,8 @@ namespace Sample
             {
                 // 正規表現検索サンプルを実行
                 ExecMatchSample();
+                // 正規表現置換サンプルを実行
+                ExecReplaceSample();
             }
             catch (DllNotFoundException ex)
             {
@@ -41,7 +43,7 @@ namespace Sample
         /// </summary>
         static void ExecMatchSample()
         {
-            // 以下のソースコードで使用しているメソッドのほか、Matches()/IsMatch()メソッドも使用可能です。
+            // 以下のソースコードで使用しているメソッドのほか、Matches()/IsMatch()メソッドやstaticのメソッドも使用可能です。
             // 使い方は、System.Text.RegularExpressions.Regexクラスで提供されている同名のメソッドとほぼ同一です。
 
             // 検索サンプル１
@@ -66,13 +68,13 @@ namespace Sample
                     }
                 }
                 // オブジェクトの解放はusing(Dispose)により行われます。
-                Console.WriteLine();
             }
             catch (ArgumentException ex)
             {
                 // 正規表現にエラーがある場合はArgumentExceptionが投げられます
                 Console.WriteLine(" ->error:「" + ex.Message + "」");
             }
+            Console.WriteLine();
 
             // 検索サンプル２（キャプチャグループ）
             try
@@ -108,9 +110,9 @@ namespace Sample
                         match = match.NextMatch();
                     }
                 }
-                Console.WriteLine();
             }
             catch (ArgumentException ex) { Console.WriteLine(" ->error:「" + ex.Message + "」"); }
+            Console.WriteLine();
 
             // 検索サンプル３（検索中でのパターン記憶の例）
             try
@@ -134,11 +136,11 @@ namespace Sample
                         match = match.NextMatch();
                     }
                 }
-                Console.WriteLine();
             }
             catch (ArgumentException ex) { Console.WriteLine(" ->error:「" + ex.Message + "」"); }
+            Console.WriteLine();
 
-            // 検索サンプル４（正規表現エラーの場合）
+            // 検索サンプルＸ（正規表現エラーの場合）
             try
             {
                 string pattern = @"***";
@@ -156,6 +158,75 @@ namespace Sample
                 // ArgumentExceptionは適切に処理してください。
                 Console.WriteLine(" ->error:「" + ex.Message + "」");
             }
+            Console.WriteLine();
+        }
+
+        /// <summary>
+        /// 正規表現置換を実行して結果を表示するサンプルメソッドです。
+        /// </summary>
+        static void ExecReplaceSample()
+        {
+            // 以下のソースコードで使用しているメソッドのほか、Match.Result()メソッドも使用可能です。
+            // 使い方は、System.Text.RegularExpressions.Regexクラスで提供されている同名のメソッドとほぼ同一です。
+
+            // 置換サンプル１："g"つき
+            try
+            {
+                string pattern = @"(\d\d)-\d{4}-\d{4}";
+                Console.WriteLine("pattern:「" + pattern + "」/gあり");
+                // コンストラクタで正規表現パターンを指定します。
+                using (BregonigRegex regex = new BregonigRegex(pattern, "g"))
+                {
+                    string text = " Yokohama 045-222-1111  Osaka 06-5555-6666  Tokyo 03-1111-9999 ";
+                    Console.WriteLine("input:「" + text + "」");
+                    string replacement = "$1-xxxx-xxxx";
+                    Console.WriteLine("replacement:「" + replacement + "」");
+                    // Replace()メソッドで置換を行います。(gオプションにより一括)
+                    string result = regex.Replace(text, replacement);
+                    Console.WriteLine(" ->result:「" + result + "」");
+                }
+                // オブジェクトの解放はusing(Dispose)により行われます。
+            }
+            catch (ArgumentException ex) { Console.WriteLine(" ->error:「" + ex.Message + "」"); }
+            Console.WriteLine();
+
+            // 置換サンプル２："g"なし、staticメソッドによる置換
+            try
+            {
+                string text = " Yokohama 045-222-1111  Osaka 06-5555-6666  Tokyo 03-1111-9999 ";
+                Console.WriteLine("input:「" + text + "」");
+                string pattern = @"(\d\d)-\d{4}-\d{4}";
+                Console.WriteLine("pattern:「" + pattern + "」/gなし");
+                string replacement = "$1-xxxx-xxxx";
+                Console.WriteLine("replacement:「" + replacement + "」");
+                // staticのReplace()メソッドでも同様に置換できます（"g"オプションなし：最初の１件のみ置換）
+                string result = BregonigRegex.Replace(text, pattern, replacement, "");
+                Console.WriteLine(" ->result:「" + result + "」");
+            }
+            catch (ArgumentException ex) { Console.WriteLine(" ->error:「" + ex.Message + "」"); }
+            Console.WriteLine();
+
+            // 置換サンプルＸ（置換パターンエラーの場合）
+            try
+            {
+                string pattern = @"[a-f]";
+                Console.WriteLine("pattern:「" + pattern + "」");
+                using (BregonigRegex regex = new BregonigRegex(pattern))
+                {
+                    string text = " 置換パターンにエラーがある場合0123456789abcdef ";
+                    Console.WriteLine("input:「" + text + "」");
+                    string replacement = null;
+                    Console.WriteLine("replacement:(null)");
+                    string result = regex.Replace(text, replacement);
+                    Console.WriteLine(" ->result:「" + result + "」");
+                }
+            }
+            catch (ArgumentException ex)
+            {
+                // ArgumentExceptionは適切に処理してください。
+                Console.WriteLine(" ->error:「" + ex.Message + "」");
+            }
+            Console.WriteLine();
         }
     }
 }
