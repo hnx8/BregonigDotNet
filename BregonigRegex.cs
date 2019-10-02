@@ -23,8 +23,8 @@ namespace Hnx8.BregonigDotNet
         // bregonig.dll(Ver.3以降)を実行フォルダに配置して下さい。
         //
         // 利用可能な正規表現・オプション指定はbregonig.dllの仕様通りです。
-        //  検索パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.1.
-        //  置換パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.3.
+        //  検索パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.1
+        //  置換パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.3
         //  オプション   http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-4.3.1-OPTIONS
         // を参照してください。
         // Unicode版APIを呼び出します。ANSI用オプションは使用できません。
@@ -271,7 +271,7 @@ namespace Hnx8.BregonigDotNet
         /// bregonig.dllの読み込みに失敗した場合は、DllNotFoundException(dllファイルがない)/TypeLoadException(BoMatchメソッドがない)/BadImageFormatException(x86/x64不一致)などの例外が投げられます。
         /// </remarks>
         public BregonigRegex(string pattern, RegexOptions options, bool replaceGlobal = false)
-            : this(pattern, ConvertOption(options)) { }
+            : this(pattern, ConvertOption(options, replaceGlobal)) { }
 
         /// <summary>
         /// RegexOptionsで指定された正規表現オプションを鬼雲正規表現オプション文字列へ変換します。
@@ -402,10 +402,13 @@ namespace Hnx8.BregonigDotNet
                 // none
             }
             // free unmanaged objects
-            FreeText();
-            if (rxp != IntPtr.Zero)
-            {
-                BRegfree(rxp);
+            lock (pattern)
+            {   // dll呼び出し中に案マネージドリソースを解放してしまわないようlockで排他制御
+                FreeText();
+                if (rxp != IntPtr.Zero)
+                {
+                    BRegfree(rxp);
+                }
                 rxp = IntPtr.Zero;
             }
             //
@@ -518,32 +521,36 @@ namespace Hnx8.BregonigDotNet
             {
                 throw new ObjectDisposedException("BregonigRegexオブジェクト");
             }
-            // 検索位置をポインタに変換
-            AllocText(input);
-            IntPtr targetstartp = IntPtr.Add(strstartp, targetstart * sizeof(char));
-            IntPtr targetendp = IntPtr.Add(strstartp, targetend * sizeof(char));
 
-            StringBuilder msgSb = new StringBuilder(80); // エラーメッセージ格納用領域を確保
-            int ret = BoMatch(pattern, options, strstartp, targetstartp, targetendp, one_shot, ref rxp, msgSb);
-            if (ret < 0)
-            {   // エラーあり
-                throw new ArgumentException(msgSb.ToString());
-            }
-            if (ret > 0)
+            lock (this.pattern)
             {
-                // マッチあり：構造体ポインタの最新の内容を取り出し
-                BREGEXP rx = (BREGEXP)(Marshal.PtrToStructure(rxp, typeof(BREGEXP)));
-                int arrayLength = rx.nparens + 1; // グループ数＋[0]マッチ箇所全体 の分
-                Group[] groups = new Group[arrayLength];
-                for (int i = 0; i < arrayLength; i++)
-                {
-                    groups[i] = rx.CreateGroup(i, this);
+                // 検索位置をポインタに変換
+                AllocText(input);
+                IntPtr targetstartp = IntPtr.Add(strstartp, targetstart * sizeof(char));
+                IntPtr targetendp = IntPtr.Add(strstartp, targetend * sizeof(char));
+
+                StringBuilder msgSb = new StringBuilder(80); // エラーメッセージ格納用領域を確保
+                int ret = BoMatch(pattern, options, strstartp, targetstartp, targetendp, one_shot, ref rxp, msgSb);
+                if (ret < 0)
+                {   // エラーあり
+                    throw new ArgumentException(msgSb.ToString());
                 }
-                return new Matched(groups, this, targetstart, targetend);
-            }
-            else
-            {
-                return null;
+                if (ret > 0)
+                {
+                    // マッチあり：構造体ポインタの最新の内容を取り出し
+                    BREGEXP rx = (BREGEXP)(Marshal.PtrToStructure(rxp, typeof(BREGEXP)));
+                    int arrayLength = rx.nparens + 1; // グループ数＋[0]マッチ箇所全体 の分
+                    Group[] groups = new Group[arrayLength];
+                    for (int i = 0; i < arrayLength; i++)
+                    {
+                        groups[i] = rx.CreateGroup(i, this);
+                    }
+                    return new Matched(groups, this, targetstart, targetend);
+                }
+                else
+                {
+                    return null;
+                }
             }
         }
 
@@ -590,68 +597,71 @@ namespace Hnx8.BregonigDotNet
                 this.prevsubst = subst;
             }
 
-            // 検索位置をポインタに変換
-            AllocText(input);
-            IntPtr targetstartp = IntPtr.Add(strstartp, targetstart * sizeof(char));
-            IntPtr targetendp = IntPtr.Add(strstartp, targetend * sizeof(char));
+            lock (this.pattern)
+            {
+                // 検索位置をポインタに変換
+                AllocText(input);
+                IntPtr targetstartp = IntPtr.Add(strstartp, targetstart * sizeof(char));
+                IntPtr targetendp = IntPtr.Add(strstartp, targetend * sizeof(char));
 
-            StringBuilder msgSb = new StringBuilder(80); // エラーメッセージ格納用領域を確保
-            int ret = BoSubst(pattern, subst, options, strstartp, targetstartp, targetendp, null, ref rxp, msgSb);
-            if (ret < 0)
-            {
-                // エラーあり
-                throw new ArgumentException(msgSb.ToString());
-            }
-            if (ret > 0)
-            {
-                // 置換成功：構造体ポインタの最新の内容を取り出し
-                BREGEXP rx = (BREGEXP)(Marshal.PtrToStructure(rxp, typeof(BREGEXP)));
-                if (match != null)
+                StringBuilder msgSb = new StringBuilder(80); // エラーメッセージ格納用領域を確保
+                int ret = BoSubst(pattern, subst, options, strstartp, targetstartp, targetendp, null, ref rxp, msgSb);
+                if (ret < 0)
                 {
-                    Group replacedMatch = rx.CreateGroup(0, this); // 置換された部分のマッチ情報を取得
-                    if (match.Index != replacedMatch.Index || match.Length != replacedMatch.Length)
+                    // エラーあり
+                    throw new ArgumentException(msgSb.ToString());
+                }
+                if (ret > 0)
+                {
+                    // 置換成功：構造体ポインタの最新の内容を取り出し
+                    BREGEXP rx = (BREGEXP)(Marshal.PtrToStructure(rxp, typeof(BREGEXP)));
+                    if (match != null)
                     {
-                        // 検索時／置換時でマッチ箇所が同一にならなかった（通常発生しない。発生したらBregonigRegexのバグ、要究明）
-                        throw new SystemException("置換対象のマッチ箇所(Index=" + match.Index + ", Match=" + match.Length + ")"
-                            + "とは異なる箇所(Index=" + replacedMatch.Index + ", Match=" + replacedMatch.Length + ")が置換されました。");
+                        Group replacedMatch = rx.CreateGroup(0, this); // 置換された部分のマッチ情報を取得
+                        if (match.Index != replacedMatch.Index || match.Length != replacedMatch.Length)
+                        {
+                            // 検索時／置換時でマッチ箇所が同一にならなかった（通常発生しない。発生したらBregonigRegexのバグ、要究明）
+                            throw new SystemException("置換対象のマッチ箇所(Index=" + match.Index + ", Match=" + match.Length + ")"
+                                + "とは異なる箇所(Index=" + replacedMatch.Index + ", Match=" + replacedMatch.Length + ")が置換されました。");
+                        }
+                        if (rx.outp == null)
+                        {
+                            return string.Empty; // 置換結果が空文字となった
+                        }
+                        // 置換部分の開始位置＝置換結果全体の開始位置＋（マッチ箇所の開始位置、ただし探索開始位置考慮）
+                        IntPtr replacedstart = IntPtr.Add(rx.outp, (match.Index - targetstart) * sizeof(char));
+                        // 置換部分の置換後文字列長＝マッチ箇所の置換前文字列長＋置換結果全体の文字列長－置換前文字列全体の文字列長
+                        int len = match.Length
+                            + (int)((rx.outendp.ToInt64() - rx.outp.ToInt64()) / sizeof(char))
+                            - (targetend - targetstart);
+                        // 置換部分の文字列内容のみをピンポイントで抜き出す
+                        return Marshal.PtrToStringUni(replacedstart, len);
                     }
-                    if (rx.outp == null)
+                    else
                     {
-                        return string.Empty; // 置換結果が空文字となった
+                        // 置換後文字列全体を組み立て
+                        StringBuilder sb = new StringBuilder();
+                        if (targetstart > 0) { sb.Append(input.Substring(0, targetstart)); }
+                        if (rx.outp != null)
+                        {   // 空文字列に置換されていなければ、置換結果の文字列を取り出し
+                            int len = (int)((rx.outendp.ToInt64() - rx.outp.ToInt64()) / sizeof(char));
+                            sb.Append(Marshal.PtrToStringUni(rx.outp, len));
+                        }
+                        if (targetend < input.Length) { sb.Append(input.Substring(targetend)); }
+                        return sb.ToString();
                     }
-                    // 置換部分の開始位置＝置換結果全体の開始位置＋（マッチ箇所の開始位置、ただし探索開始位置考慮）
-                    IntPtr replacedstart = IntPtr.Add(rx.outp, (match.Index - targetstart) * sizeof(char));
-                    // 置換部分の置換後文字列長＝マッチ箇所の置換前文字列長＋置換結果全体の文字列長－置換前文字列全体の文字列長
-                    int len = match.Length
-                        + (int)((rx.outendp.ToInt64() - rx.outp.ToInt64()) / sizeof(char))
-                        - (targetend - targetstart);
-                    // 置換部分の文字列内容のみをピンポイントで抜き出す
-                    return Marshal.PtrToStringUni(replacedstart, len);
                 }
                 else
                 {
-                    // 置換後文字列全体を組み立て
-                    StringBuilder sb = new StringBuilder();
-                    if (targetstart > 0) { sb.Append(input.Substring(0, targetstart)); }
-                    if (rx.outp != null)
-                    {   // 空文字列に置換されていなければ、置換結果の文字列を取り出し
-                        int len = (int)((rx.outendp.ToInt64() - rx.outp.ToInt64()) / sizeof(char));
-                        sb.Append(Marshal.PtrToStringUni(rx.outp, len));
+                    // 置換箇所なし
+                    if (match != null)
+                    {
+                        // 検索時／置換時でマッチ箇所が同一にならなかった（通常発生しない。発生したらBregonigRegexのバグ、要究明）
+                        throw new SystemException("置換対象のマッチ箇所(Index=" + match.Index + ", Match=" + match.Length + ")が検出できませんでした。");
                     }
-                    if (targetend < input.Length) { sb.Append(input.Substring(targetend)); }
-                    return sb.ToString();
+                    // 置換前テキスト内容のまま変更なし
+                    return input;
                 }
-            }
-            else
-            {
-                // 置換箇所なし
-                if (match != null)
-                {
-                    // 検索時／置換時でマッチ箇所が同一にならなかった（通常発生しない。発生したらBregonigRegexのバグ、要究明）
-                    throw new SystemException("置換対象のマッチ箇所(Index=" + match.Index + ", Match=" + match.Length + ")が検出できませんでした。");
-                }
-                // 置換前テキスト内容のまま変更なし
-                return input;
             }
         }
 

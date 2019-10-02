@@ -27,15 +27,15 @@ bregonig.dllの公式サイト http://k-takata.o.oo7.jp/mysoft/bregonig.html よ
 利用可能な正規表現／オプション指定はbregonig.dllの仕様通りです。  
 （Unicode版のBoMatch()/BoSubst()関数を呼び出すことで正規表現を実行しています）  
 詳細は、  
- 検索パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.1.  
- 置換パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.3.  
+ 検索パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.1  
+ 置換パターン http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-5.3  
  オプション http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-4.3.1-OPTIONS  
 を参照ください。
 
 
 ## ライセンス
 BregonigRegex.cs は [MIT License](https://github.com/hnx8/BregonigDotNet/blob/master/LICENSE) です。  
-※bregonig.dllの配布にあたっては、bregonig.dllのライセンス http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-9. / https://github.com/k-takata/bregonig#license をご確認ください。
+※bregonig.dllの配布にあたっては、bregonig.dllのライセンス http://k-takata.o.oo7.jp/mysoft/bregonig.html#SCT-9 / https://github.com/k-takata/bregonig#license をご確認ください。
 
 
 ## 組み込み使用例
